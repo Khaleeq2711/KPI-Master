@@ -1,0 +1,12 @@
+{
+  "name": "KPI Master",
+  "short_name": "KPI Master",
+  "description": "Elite Performance Tracking by Power Agent System.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#3b0bbd",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
