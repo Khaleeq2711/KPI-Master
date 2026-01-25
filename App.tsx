@@ -96,7 +96,7 @@ const App: React.FC = () => {
     } else if (now > settings.nextPaymentDue) {
       if (settings.billingStatus !== 'GRACE_PERIOD') {
         setSettings(prev => ({ ...prev, billingStatus: 'GRACE_PERIOD' }));
-        const owner = users.find(u => u.role === 'OWNER');
+        const owner = users.find(u => u.role === 'admin');
         if (owner) {
           const notification: AppNotification = {
             id: Math.random().toString(36).substr(2, 9),
@@ -150,7 +150,7 @@ const App: React.FC = () => {
   };
 
   const handleLogin = (user: User) => {
-    if (settings.factoryResetDate && user.role !== 'OWNER') {
+    if (settings.factoryResetDate && user.role !== 'admin') {
       alert("This account is currently scheduled for deletion and is restricted. Please contact the account owner.");
       return;
     }
@@ -167,7 +167,7 @@ const App: React.FC = () => {
       password: password || '',
       securityQuestion: securityQuestion || '',
       securityAnswer: securityAnswer || '',
-      role: 'OWNER',
+      role: 'admin',
       revenueGoal: settings.defaultUserGoal,
       status: 'active',
       agencyId: `agency-${Math.floor(Math.random() * 900) + 100}`,
@@ -202,6 +202,11 @@ const App: React.FC = () => {
     setCurrentUser(null);
     localStorage.removeItem('kpimaster_auth_token');
     localStorage.removeItem('kpimaster_current_user');
+    localStorage.removeItem('kpimaster_user_role');
+    localStorage.removeItem('kpimaster_user_name');
+    localStorage.removeItem('kpimaster_user_email');
+    localStorage.removeItem('kpimaster_user_company_id');
+    localStorage.removeItem('kpimaster_user_id');
   };
 
   const handleNotificationAction = (notification: AppNotification) => {
@@ -289,7 +294,7 @@ const App: React.FC = () => {
                 Access to the KPI Master engine has been suspended due to an outstanding subscription balance or cancellation.
               </p>
            </div>
-           {currentUser.role === 'OWNER' ? (
+           {currentUser.role === 'admin' ? (
              <button 
                onClick={() => setActiveTab('Settings')}
                className="px-10 py-5 purple-solid text-white font-black uppercase text-[10px] tracking-widest rounded-2xl shadow-xl shadow-indigo-500/10 hover:scale-105 active:scale-95 transition-all flex items-center gap-3"
@@ -315,7 +320,7 @@ const App: React.FC = () => {
                     </p>
                   </div>
                 </div>
-                {currentUser.role === 'OWNER' && (
+                {currentUser.role === 'admin' && (
                   <button 
                     onClick={() => setActiveTab('Settings')}
                     className="px-6 py-3 bg-white text-black font-black uppercase text-[9px] rounded-xl tracking-widest hover:scale-105 transition-all"

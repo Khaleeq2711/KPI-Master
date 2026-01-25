@@ -35,7 +35,7 @@ const SuperAdminView: React.FC<SuperAdminViewProps> = ({ allUsers, allLogs, allA
         };
       }
       groups[u.agencyId].userCount++;
-      if (u.role === 'OWNER') groups[u.agencyId].owner = u.name;
+      if (u.role === 'admin') groups[u.agencyId].owner = u.name;
     });
     return Object.values(groups).filter(w => 
       w.name.toLowerCase().includes(searchTerm.toLowerCase()) || 

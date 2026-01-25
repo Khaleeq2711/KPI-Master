@@ -1,4 +1,4 @@
-export type Role = 'OWNER' | 'ADMIN' | 'USER';
+export type Role = 'admin' | 'closer' | 'setter' | 'bookkeeper' | 'USER';
 export type DateFilter = 'today' | 'week' | 'month' | 'ytd' | 'custom';
 export type PerformanceMetric = 'revenue' | 'calls' | 'appointments' | 'followUps' | 'noShows' | 'closedDeals';
 export type VisibilityRole = 'OWNER' | 'ADMIN' | 'EVERYONE';

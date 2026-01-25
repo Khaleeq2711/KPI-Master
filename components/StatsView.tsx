@@ -23,8 +23,9 @@ const StatsView: React.FC<StatsViewProps> = ({ logs, folders, setFolders, report
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [movingReportId, setMovingReportId] = useState<string | null>(null);
 
+  const isAdmin = currentUser.role === 'admin';
   const isAgent = currentUser.role === 'USER';
-  const isPrivileged = currentUser.role !== 'USER';
+  const isPrivileged = currentUser.role === 'admin';
 
   // Available Metrics Configuration
   const availableMetrics = [
@@ -49,8 +50,8 @@ const StatsView: React.FC<StatsViewProps> = ({ logs, folders, setFolders, report
   const canSeeRevenue = useMemo(() => {
     const visibility = settings.revenueVisibility || 'EVERYONE';
     if (visibility === 'EVERYONE') return true;
-    if (visibility === 'ADMIN') return currentUser.role === 'ADMIN' || currentUser.role === 'OWNER';
-    if (visibility === 'OWNER') return currentUser.role === 'OWNER';
+    if (visibility === 'ADMIN') return isAdmin;
+    if (visibility === 'OWNER') return isAdmin;
     return false;
   }, [settings.revenueVisibility, currentUser.role]);
 

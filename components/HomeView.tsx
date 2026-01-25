@@ -35,15 +35,26 @@ const HomeView: React.FC<HomeViewProps> = ({
     setVisibleMetrics(settings.defaultChartMetrics || ['closedDeals', 'appointments']);
   }, [settings.defaultChartMetrics]);
 
+  // Role-based access control
+  const isAdmin = currentUser.role === 'admin';
   const isAgent = currentUser.role === 'USER';
+  const isCloser = currentUser.role === 'closer';
+  const isSetter = currentUser.role === 'setter';
+  const isBookkeeper = currentUser.role === 'bookkeeper';
+  
+  // Only admin has full access, others have role-specific limitations
+  const hasFullAccess = isAdmin;
+  const canViewTeamData = isAdmin; // Only admin can view team-wide data
+  const canIsolateUser = isAdmin; // Only admin can isolate specific users
+  const canViewAllMetrics = isAdmin; // Only admin can view all metrics
 
   const canSeeRevenue = useMemo(() => {
     const visibility = settings.revenueVisibility || 'EVERYONE';
     if (visibility === 'EVERYONE') return true;
-    if (visibility === 'ADMIN') return currentUser.role === 'ADMIN' || currentUser.role === 'OWNER';
-    if (visibility === 'OWNER') return currentUser.role === 'OWNER';
+    if (visibility === 'ADMIN') return isAdmin;
+    if (visibility === 'OWNER') return isAdmin;
     return false;
-  }, [settings.revenueVisibility, currentUser.role]);
+  }, [settings.revenueVisibility, isAdmin]);
 
   const greeting = useMemo(() => {
     const hr = new Date().getHours();
@@ -91,8 +102,9 @@ const HomeView: React.FC<HomeViewProps> = ({
     const todayStr = now.toISOString().split('T')[0];
     
     return logs.filter(l => {
-      if (isAgent && l.userId !== currentUser.id) return false;
-      if (!isAgent && isolatedUser && l.userId !== isolatedUser.id) return false;
+      // Role-based filtering: Only admin can see all data, others see only their own
+      if (!hasFullAccess && l.userId !== currentUser.id) return false;
+      if (hasFullAccess && isolatedUser && l.userId !== isolatedUser.id) return false;
 
       const logDate = new Date(l.date);
       if (dateFilter === 'today') return l.date === todayStr;
@@ -106,7 +118,7 @@ const HomeView: React.FC<HomeViewProps> = ({
       if (dateFilter === 'custom') return l.date >= customDateRange.start && l.date <= customDateRange.end;
       return true;
     });
-  }, [logs, dateFilter, currentUser, isolatedUser, customDateRange, isAgent]);
+  }, [logs, dateFilter, currentUser, isolatedUser, customDateRange, hasFullAccess]);
 
   const stats = useMemo(() => {
     const totals = filteredLogsForStats.reduce((acc, curr) => ({
@@ -118,12 +130,12 @@ const HomeView: React.FC<HomeViewProps> = ({
       closedDeals: acc.closedDeals + (curr.closedDeals || 0),
     }), { revenue: 0, calls: 0, appointments: 0, followUps: 0, noShows: 0, closedDeals: 0 });
 
-    let goal = isAgent ? currentUser.revenueGoal : (isolatedUser ? isolatedUser.revenueGoal : users.reduce((sum, u) => sum + u.revenueGoal, 0));
+    let goal = !hasFullAccess ? currentUser.revenueGoal : (isolatedUser ? isolatedUser.revenueGoal : users.reduce((sum, u) => sum + u.revenueGoal, 0));
     const progress = goal > 0 ? (totals.revenue / goal) * 100 : 0;
     const convRate = totals.appointments > 0 ? (totals.closedDeals / totals.appointments) * 100 : 0;
 
     return { ...totals, goal, progress, convRate };
-  }, [filteredLogsForStats, isolatedUser, currentUser, users, isAgent]);
+  }, [filteredLogsForStats, isolatedUser, currentUser, users, hasFullAccess]);
 
   const chartData = useMemo(() => {
     const now = new Date();
@@ -241,16 +253,16 @@ const HomeView: React.FC<HomeViewProps> = ({
           <div className="col-span-full bg-zinc-950 border border-white/5 p-8 rounded-[2.5rem] relative overflow-hidden group shadow-2xl">
             <div className="flex justify-between items-start">
                <div>
-                 <p className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.3em] mb-2">{isAgent ? 'My Production' : (isolatedUser ? `${isolatedUser.name}'s Revenue` : 'Team Performance')}</p>
+                 <p className="text-[10px] text-zinc-500 font-black uppercase tracking-[0.3em] mb-2">{!hasFullAccess ? 'My Production' : (isolatedUser ? `${isolatedUser.name}'s Revenue` : 'Team Performance')}</p>
                 <h3 className="text-6xl font-black italic gold-text">${stats.revenue.toLocaleString()}</h3>
                </div>
-               {!isAgent && isolatedUser && (
+               {hasFullAccess && isolatedUser && (
                  <button onClick={(e) => { e.stopPropagation(); setIsolatedUser(null); }} className="px-4 py-2 bg-white text-black rounded-xl text-[9px] font-black uppercase tracking-widest active:scale-95 transition-all shadow-lg">Show Team</button>
                )}
             </div>
             <div className="mt-8 space-y-3">
               <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-zinc-500">
-                <span>{isAgent ? 'My Goal' : 'Target'}: ${stats.goal.toLocaleString()}</span>
+                <span>{!hasFullAccess ? 'My Goal' : 'Target'}: ${stats.goal.toLocaleString()}</span>
                 <span className="gold-text">{Math.round(stats.progress)}%</span>
               </div>
               <div className="h-2 bg-zinc-900 rounded-full overflow-hidden border border-white/5">
@@ -275,7 +287,7 @@ const HomeView: React.FC<HomeViewProps> = ({
 
       <div className="bg-zinc-950 border border-white/5 p-8 rounded-[3rem] shadow-2xl">
         <div className="mb-8">
-          <h3 className="text-sm font-black uppercase tracking-[0.3em]">{isAgent ? 'My Performance Trends' : 'Team Performance Trends'}</h3>
+          <h3 className="text-sm font-black uppercase tracking-[0.3em]">{!hasFullAccess ? 'My Performance Trends' : 'Team Performance Trends'}</h3>
           <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mt-1">Analyzing {dateFilter.toUpperCase()} data</p>
         </div>
         

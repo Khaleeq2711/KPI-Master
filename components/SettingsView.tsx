@@ -18,7 +18,7 @@ interface SettingsViewProps {
 }
 
 const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, setCurrentUser, settings, setSettings, users, setUsers, auditHistory, deletedHistory, onRestoreItem, onRevertAudit, onLogout, logAudit }) => {
-  const isOwner = currentUser.role === 'OWNER';
+  const isAdmin = currentUser.role === 'admin';
   const isPrivileged = currentUser.role !== 'USER';
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvInputRef = useRef<HTMLInputElement>(null);

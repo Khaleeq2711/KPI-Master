@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, AppSettings } from '../types.ts';
-import { Building2, X, Mail, UserCircle, Lock, ArrowRight, ShieldCheck, Zap, Check, Layout as LayoutIcon, Info } from 'lucide-react';
+import { Building2, X, Mail, UserCircle, Lock, ArrowRight, ShieldCheck, Zap, Check, Layout as LayoutIcon, Info, Loader2 } from 'lucide-react';
 
 interface AuthViewProps {
   onLogin: (user: User) => void;
@@ -18,36 +18,153 @@ const AuthView: React.FC<AuthViewProps> = ({ onLogin, onSignUp, onUpdateUser, ex
   const [name, setName] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('kpimaster_last_company', companyName);
   }, [companyName]);
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (companyName.toLowerCase().trim() !== settings.accountName.toLowerCase().trim()) {
-      alert(`Invalid Company Identifier. Please enter "${settings.accountName}"`);
-      return;
+  // Check for saved credentials on mount and auto-login
+  useEffect(() => {
+    const savedRole = localStorage.getItem('kpimaster_user_role');
+    const savedName = localStorage.getItem('kpimaster_user_name');
+    const savedEmail = localStorage.getItem('kpimaster_user_email');
+    const savedCompanyId = localStorage.getItem('kpimaster_user_company_id');
+
+    if (savedRole && savedName && savedEmail && savedCompanyId) {
+      // Normalize role - use valid roles or default to 'USER'
+      const validRoles: ('admin' | 'closer' | 'setter' | 'bookkeeper')[] = ['admin', 'closer', 'setter', 'bookkeeper'];
+      const normalizedRole = savedRole && validRoles.includes(savedRole.toLowerCase() as any)
+        ? savedRole.toLowerCase() as 'admin' | 'closer' | 'setter' | 'bookkeeper'
+        : 'USER';
+      
+      // Create a user object from saved credentials
+      const savedUser: User = {
+        id: localStorage.getItem('kpimaster_user_id') || Math.random().toString(36).substr(2, 9),
+        name: savedName,
+        email: savedEmail,
+        role: normalizedRole,
+        revenueGoal: settings.defaultUserGoal,
+        status: 'active',
+        agencyId: `agency-${Math.floor(Math.random() * 900) + 100}`,
+        needsSetup: false,
+        taskNotificationsEnabled: true,
+        notificationSoundEnabled: true,
+        notificationVibrationEnabled: false,
+        taskReminderOffset: { value: 1, unit: 'hours', direction: 'before' }
+      };
+      
+      // Auto-login with saved credentials
+      onLogin(savedUser);
     }
-    const foundUser = existingUsers.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (foundUser && foundUser.password === password) {
-      onLogin(foundUser);
-    } else {
-      alert('Invalid email or password.');
+  }, [onLogin, settings.defaultUserGoal]);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      const response = await fetch('http://localhost:3002/api/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          companyName,
+          email,
+          password
+        })
+      });
+
+      const data = await response.json();
+      console.log('Login API Response:', data);
+
+      if (data.success && data.data) {
+        const userData = data.data;
+        
+        // Normalize role - use valid roles or default to 'USER'
+        const validRoles: ('admin' | 'closer' | 'setter' | 'bookkeeper')[] = ['admin', 'closer', 'setter', 'bookkeeper'];
+        const normalizedRole = userData.role && validRoles.includes(userData.role.toLowerCase() as any) 
+          ? userData.role.toLowerCase() as 'admin' | 'closer' | 'setter' | 'bookkeeper'
+          : 'USER';
+        
+        // Save credentials to localStorage
+        localStorage.setItem('kpimaster_user_role', normalizedRole);
+        localStorage.setItem('kpimaster_user_name', userData.name);
+        localStorage.setItem('kpimaster_user_email', userData.email);
+        localStorage.setItem('kpimaster_user_company_id', userData.companyName);
+        
+        // Create User object for onLogin
+        const user: User = {
+          id: Math.random().toString(36).substr(2, 9),
+          name: userData.name,
+          email: userData.email,
+          role: normalizedRole,
+          revenueGoal: settings.defaultUserGoal,
+          status: 'active',
+          agencyId: `agency-${Math.floor(Math.random() * 900) + 100}`,
+          needsSetup: false,
+          taskNotificationsEnabled: true,
+          notificationSoundEnabled: true,
+          notificationVibrationEnabled: false,
+          taskReminderOffset: { value: 1, unit: 'hours', direction: 'before' }
+        };
+        
+        // Save user ID for future auto-login
+        localStorage.setItem('kpimaster_user_id', user.id);
+        
+        // Call onLogin to redirect to dashboard
+        onLogin(user);
+      } else {
+        alert(data.message || 'Login failed');
+        setIsLoading(false);
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      alert('Login failed. Please try again.');
+      setIsLoading(false);
     }
   };
 
-  const handleSignUpSubmit = (e: React.FormEvent) => {
+  const handleSignUpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!termsAccepted) {
       alert('Please accept the Terms & Conditions to proceed.');
       return;
     }
     if (!name || !email || !companyName || !password) return;
-    onSignUp(name, email, companyName, password);
+
+    try {
+      const response = await fetch('http://localhost:3002/api/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name,
+          email,
+          companyName,
+          password
+        })
+      });
+
+      const data = await response.json();
+      console.log('Signup API Response:', data);
+
+      if (data.success) {
+        alert('Account created successfully!');
+        // You might want to automatically log them in or redirect to login
+        // For now, we'll just show success message
+      } else {
+        alert(data.message || 'Signup failed');
+      }
+    } catch (error) {
+      console.error('Signup error:', error);
+      alert('Signup failed. Please try again.');
+    }
   };
 
-  const handleDemoMode = (role: 'OWNER' | 'USER') => {
+  const handleDemoMode = (role: 'admin' | 'USER') => {
     const demoUser = existingUsers.find(u => u.role === role);
     if (demoUser) {
         setCompanyName(settings.accountName);
@@ -114,8 +231,21 @@ const AuthView: React.FC<AuthViewProps> = ({ onLogin, onSignUp, onUpdateUser, ex
                 <Lock size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600" />
                 <input type="password" placeholder="Password" className="w-full bg-black border border-white/10 rounded-xl p-4 pl-12 text-sm font-bold text-white outline-none focus:border-[#6b05e8] transition-all" value={password} onChange={e => setPassword(e.target.value)} required />
               </div>
-              <button type="submit" className="w-full py-4 purple-solid text-white font-black uppercase text-xs tracking-widest rounded-xl shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2">
-                Log In <ArrowRight size={14} />
+              <button 
+                type="submit" 
+                disabled={isLoading}
+                className={`w-full py-4 purple-solid text-white font-black uppercase text-xs tracking-widest rounded-xl shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2 ${isLoading ? 'opacity-75 cursor-not-allowed' : ''}`}
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    Logging In...
+                  </>
+                ) : (
+                  <>
+                    Log In <ArrowRight size={14} />
+                  </>
+                )}
               </button>
             </form>
           ) : (
@@ -163,7 +293,7 @@ const AuthView: React.FC<AuthViewProps> = ({ onLogin, onSignUp, onUpdateUser, ex
                 <p className="text-[8px] font-black uppercase text-zinc-700 tracking-[0.3em] text-center">Fast-Track Demo Access</p>
                 <div className="grid grid-cols-2 gap-3">
                   <button 
-                    onClick={() => handleDemoMode('OWNER')} 
+                    onClick={() => handleDemoMode('admin')} 
                     className="flex flex-col items-center gap-2 py-4 bg-zinc-900/50 border border-white/5 rounded-2xl hover:border-yellow-500/50 transition-all group"
                   >
                     <ShieldCheck size={18} className="text-zinc-600 group-hover:text-yellow-500 transition-colors" />

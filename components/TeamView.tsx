@@ -37,8 +37,8 @@ const TeamView: React.FC<TeamViewProps> = ({ users, setUsers, currentUser, defau
   const [showSuccess, setShowSuccess] = useState(false);
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
 
-  const isOwner = currentUser.role === 'OWNER';
-  const isPrivileged = currentUser.role === 'OWNER' || currentUser.role === 'ADMIN';
+  const isAdmin = currentUser.role === 'admin';
+  const isPrivileged = currentUser.role === 'admin';
 
   const handleShareAccess = (user: User) => {
     const appUrl = window.location.origin;
@@ -67,8 +67,8 @@ Please log in and update your security settings.
       const target = users.find(u => u.id === deleteId);
       if (!target) return;
 
-      if (currentUser.role === 'ADMIN' && target.role === 'OWNER') {
-        alert("Permission Denied: Admins cannot terminate Owner accounts.");
+      if (currentUser.role !== 'admin' && target.role === 'admin') {
+        alert("Permission Denied: Only admins can manage admin accounts.");
         setDeleteId(null);
         return;
       }
@@ -100,8 +100,8 @@ Please log in and update your security settings.
     if (!inviteName || !inviteEmail) return;
 
     let finalRole = inviteRole;
-    if (inviteRole === 'OWNER' && !isOwner) {
-      finalRole = 'ADMIN';
+    if (inviteRole === 'admin' && !isAdmin) {
+      finalRole = 'USER';
     }
 
     const newUser: User = {
@@ -145,8 +145,8 @@ Please log in and update your security settings.
     if (!editingUser) return;
 
     let finalRole = editRole;
-    if (editRole === 'OWNER' && !isOwner) {
-      finalRole = editingUser.role === 'OWNER' ? 'OWNER' : 'ADMIN';
+    if (editRole === 'admin' && !isAdmin) {
+      finalRole = editingUser.role === 'admin' ? 'admin' : 'USER';
     }
 
     setUsers(prev => prev.map(u => u.id === editingUser.id ? { 
@@ -206,8 +206,8 @@ Please log in and update your security settings.
 
       <div className="grid gap-4">
         {users.map(u => {
-          const canManage = isPrivileged && (isOwner || u.role !== 'OWNER' || u.id === currentUser.id);
-          const canDelete = isPrivileged && (isOwner ? u.id !== currentUser.id : u.role !== 'OWNER');
+          const canManage = isPrivileged && (isAdmin || u.role !== 'admin' || u.id === currentUser.id);
+          const canDelete = isPrivileged && (isAdmin ? u.id !== currentUser.id : u.role !== 'admin');
 
           return (
             <div 
@@ -334,8 +334,8 @@ Please log in and update your security settings.
               <div className="space-y-2">
                 <label className="text-[9px] font-black uppercase text-zinc-600 px-2 tracking-widest">Permission Level</label>
                 <div className="grid grid-cols-3 gap-2 bg-black p-1 rounded-2xl border border-white/5">
-                   {(['USER', 'ADMIN', 'OWNER'] as Role[]).map(role => {
-                     if (role === 'OWNER' && !isOwner) return null;
+                   {(['USER', 'admin', 'closer', 'setter', 'bookkeeper'] as Role[]).map(role => {
+                     if (role === 'admin' && !isAdmin) return null;
                      return (
                        <button 
                         key={role} 
@@ -396,8 +396,8 @@ Please log in and update your security settings.
               <div className="space-y-2">
                 <label className="text-[9px] font-black uppercase text-zinc-600 px-2 tracking-widest">Permission Level</label>
                 <div className="grid grid-cols-3 gap-2 bg-black p-1 rounded-2xl border border-white/5">
-                   {(['USER', 'ADMIN', 'OWNER'] as Role[]).map(role => {
-                     if (role === 'OWNER' && !isOwner) return null;
+                   {(['USER', 'admin', 'closer', 'setter', 'bookkeeper'] as Role[]).map(role => {
+                     if (role === 'admin' && !isAdmin) return null;
                      return (
                        <button 
                         key={role} 
