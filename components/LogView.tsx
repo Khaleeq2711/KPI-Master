@@ -2,6 +2,8 @@
 import React, { useState, useMemo } from 'react';
 import { User, ActivityLog, AuditType } from '../types';
 import { Save, CheckCircle, History, Search, Edit2, Trash2, X, Calendar, Clock, FileText, AlignLeft, ChevronDown, ChevronUp } from 'lucide-react';
+import axios from 'axios';
+
 
 interface LogViewProps {
   currentUser: User;
@@ -15,13 +17,13 @@ const LogView: React.FC<LogViewProps> = ({ currentUser, logs, setLogs, logAudit 
   const [editingLogId, setEditingLogId] = useState<string | null>(null);
   const [historySearchTerm, setHistorySearchTerm] = useState('');
   const [showHistory, setShowHistory] = useState(false);
-  
-  const [form, setForm] = useState({ 
-    date: new Date().toISOString().split('T')[0], 
-    revenue: 0, 
-    calls: 0, 
-    appointments: 0, 
-    followUps: 0, 
+
+  const [form, setForm] = useState({
+    date: new Date().toISOString().split('T')[0],
+    revenue: 0,
+    calls: 0,
+    appointments: 0,
+    followUps: 0,
     noShows: 0,
     closedDeals: 0,
     notes: ''
@@ -31,28 +33,50 @@ const LogView: React.FC<LogViewProps> = ({ currentUser, logs, setLogs, logAudit 
     const term = historySearchTerm.toLowerCase();
     return logs
       .filter(l => l.userId === currentUser.id)
-      .filter(l => 
-        l.date.includes(term) || 
+      .filter(l =>
+        l.date.includes(term) ||
         l.notes?.toLowerCase().includes(term)
       )
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [logs, currentUser.id, historySearchTerm]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Retrieve the username from localStorage
+    const userName = localStorage.getItem('kpimaster_user_name'); // Assuming username is stored in localStorage
+    console.log(userName);
+
+    let newEntry = {
+      id: Math.random().toString(36).substr(2, 9),
+      userId: currentUser.id,
+      agencyId: currentUser.agencyId,
+      userName, // Add the username here
+      ...form // Spread the form data
+    };
+
     if (editingLogId) {
       setLogs(prev => prev.map(l => l.id === editingLogId ? { ...l, ...form } : l));
       if (logAudit) logAudit(`Performance record for ${form.date} adjusted by ${currentUser.name}`, "STAT_CHANGE");
       setEditingLogId(null);
     } else {
-      const newEntry: ActivityLog = { id: Math.random().toString(36).substr(2, 9), userId: currentUser.id, agencyId: currentUser.agencyId, ...form };
       setLogs([newEntry, ...logs]);
       if (logAudit) logAudit(`New performance data initialized for ${form.date} (Revenue: $${form.revenue})`, "STAT_CHANGE");
     }
+
     setShowSuccess(true);
     setTimeout(() => setShowSuccess(false), 3000);
     setForm({ date: new Date().toISOString().split('T')[0], revenue: 0, calls: 0, appointments: 0, followUps: 0, noShows: 0, closedDeals: 0, notes: '' });
+
+    // Submit the complete newEntry object to backend
+    try {
+      const response = await axios.post('http://localhost:3002/api/logs', newEntry); // Pass the newEntry object here
+      console.log('Log submitted successfully:', response.data);
+    } catch (error) {
+      console.error('Error submitting log:', error);
+    }
   };
+
 
   const handleEdit = (log: ActivityLog) => {
     setEditingLogId(log.id);
@@ -90,21 +114,21 @@ const LogView: React.FC<LogViewProps> = ({ currentUser, logs, setLogs, logAudit 
               <label className="text-[10px] font-black uppercase tracking-widest text-zinc-600 px-2 flex items-center gap-2">
                 <Calendar size={12} className="gold-text" /> Production Date
               </label>
-              <input type="date" className="w-full bg-black border border-white/10 rounded-2xl p-5 text-sm font-bold outline-none focus:border-yellow-500 transition-all text-white" value={form.date} onChange={e => setForm({...form, date: e.target.value})} />
+              <input type="date" className="w-full bg-black border border-white/10 rounded-2xl p-5 text-sm font-bold outline-none focus:border-yellow-500 transition-all text-white" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
             </div>
             {editingLogId && <button type="button" onClick={cancelEdit} className="w-full md:w-auto px-8 py-5 bg-zinc-900 text-zinc-500 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:text-white transition-all flex items-center justify-center gap-2"><X size={16} /> Cancel Editing</button>}
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-            <InputGroup label="Revenue Generated ($)" value={form.revenue} onChange={v => setForm({...form, revenue: +v})} />
-            <InputGroup label="Calls Made" value={form.calls} onChange={v => setForm({...form, calls: +v})} />
-            <InputGroup label="Booked" value={form.appointments} onChange={v => setForm({...form, appointments: +v})} />
-            <InputGroup label="Closed Deals" value={form.closedDeals} onChange={v => setForm({...form, closedDeals: +v})} />
-            <InputGroup label="Follow Ups" value={form.followUps} onChange={v => setForm({...form, followUps: +v})} />
-            <InputGroup label="No Shows" value={form.noShows} onChange={v => setForm({...form, noShows: +v})} />
+            <InputGroup label="Revenue Generated ($)" value={form.revenue} onChange={v => setForm({ ...form, revenue: +v })} />
+            <InputGroup label="Calls Made" value={form.calls} onChange={v => setForm({ ...form, calls: +v })} />
+            <InputGroup label="Booked" value={form.appointments} onChange={v => setForm({ ...form, appointments: +v })} />
+            <InputGroup label="Closed Deals" value={form.closedDeals} onChange={v => setForm({ ...form, closedDeals: +v })} />
+            <InputGroup label="Follow Ups" value={form.followUps} onChange={v => setForm({ ...form, followUps: +v })} />
+            <InputGroup label="No Shows" value={form.noShows} onChange={v => setForm({ ...form, noShows: +v })} />
           </div>
           <div className="space-y-2">
             <label className="text-[10px] font-black uppercase tracking-widest text-zinc-600 px-2 flex items-center gap-2"><AlignLeft size={12} className="gold-text" /> Activity Notes</label>
-            <textarea className="w-full bg-black border border-white/10 rounded-2xl p-5 text-sm font-bold outline-none focus:border-yellow-500 transition-all text-white min-h-[120px]" placeholder="..." value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} />
+            <textarea className="w-full bg-black border border-white/10 rounded-2xl p-5 text-sm font-bold outline-none focus:border-yellow-500 transition-all text-white min-h-[120px]" placeholder="..." value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
           </div>
           <button type="submit" className={`w-full py-6 font-black uppercase tracking-[0.2em] rounded-2xl flex items-center justify-center gap-3 shadow-xl active:scale-95 transition-all purple-solid text-white`}>
             <Save size={20} /> {editingLogId ? 'Update Log Entry' : 'Update & Save Logs'}
@@ -113,7 +137,7 @@ const LogView: React.FC<LogViewProps> = ({ currentUser, logs, setLogs, logAudit 
         </form>
 
         <div className="flex justify-center">
-          <button 
+          <button
             onClick={() => setShowHistory(!showHistory)}
             className="flex items-center gap-3 px-10 py-4 bg-zinc-900 border border-white/5 rounded-[2rem] text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-white transition-all group"
           >

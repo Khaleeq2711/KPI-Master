@@ -60,6 +60,46 @@ app.post('/api/signup', async (req, res) => {
   }
 });
 
+// Submitting activity log data
+app.post('/api/logs', async (req, res) => {
+  try {
+    const { userId, date, revenue, calls, appointments, followUps, noShows, closedDeals, notes, userName } = req.body;
+    const payload = {
+      logActivity: {
+        userId,
+        date,
+        revenue,
+        calls,
+        appointments,
+        followUps,
+        noShows,
+        closedDeals,
+        notes,
+        userName // Add username to the payload
+      }
+    };
+    console.log('payload:', payload);
+
+    // Send the data to the Google Apps Script
+    const response = await axios.post(GOOGLE_APPS_SCRIPT_URL, payload, {
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    console.log('Google Apps Script response:', response.data);
+    res.json(response.data);
+
+  } catch (error) {
+    console.error('Error submitting activity log:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Activity log submission failed',
+      error: error.message
+    });
+  }
+});
+
+
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Backend server is running' });
