@@ -24,9 +24,19 @@ const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, setCurrentUser
   const csvInputRef = useRef<HTMLInputElement>(null);
   const userPhotoInputRef = useRef<HTMLInputElement>(null);
   
-  const [activeSubTab, setActiveSubTab] = useState<'profile' | 'agency' | 'defaults' | 'activity' | 'billing'>('profile');
+  const [activeSubTab, setActiveSubTab] = useState<'profile' | 'agency' | 'defaults' | 'activity' | 'billing' | 'users'>('profile');
   const [activityView, setActivityView] = useState<'audit' | 'restoration'>('audit');
   const [activitySearch, setActivitySearch] = useState('');
+
+  // Users form state (admin only)
+  const [newUserForm, setNewUserForm] = useState<{ name: string; email: string; role: 'closer'|'setter'|'bookkeeper'|'admin'; password: string; companyId: string }>({
+    name: '',
+    email: '',
+    role: 'closer',
+    password: '',
+    companyId: ''
+  });
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
   
   // Workspace Defaults State
   const [pendingDefaultGoal, setPendingDefaultGoal] = useState(settings.defaultUserGoal);
@@ -51,13 +61,59 @@ const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, setCurrentUser
     alert('Workspace defaults saved.');
   };
 
+  // Create user (admin) - posts to backend (/api/signup) which forwards to Google Apps Script
+  const createUserFromSettings = async () => {
+    if (!isAdmin) return;
+    const { name, email, role, password, companyId } = newUserForm;
+    if (!name || !email || !role || !password || !companyId) {
+      alert('Please fill all fields to create a user');
+      return;
+    }
+    setIsCreatingUser(true);
+    try {
+      const res = await fetch('http://localhost:3002/api/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, role, password, companyName: companyId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        const createdUser: User = {
+          id: Math.random().toString(36).substr(2,9),
+          name,
+          email,
+          role: role as any,
+          revenueGoal: settings.defaultUserGoal,
+          status: 'active',
+          agencyId: companyId,
+          needsSetup: false,
+          taskNotificationsEnabled: true,
+          notificationSoundEnabled: true,
+          notificationVibrationEnabled: false,
+          taskReminderOffset: { value: 1, unit: 'hours', direction: 'before' }
+        };
+        setUsers(prev => [...prev, createdUser]);
+        if (logAudit) logAudit(`Admin created user ${name} (${role})`, 'USER_MANAGEMENT', createdUser);
+        alert('User created and added to sheet');
+        setNewUserForm({ name: '', email: '', role: 'closer', password: '', companyId: '' });
+      } else {
+        alert(data.message || 'User creation failed');
+      }
+    } catch (err) {
+      console.error('createUserFromSettings', err);
+      alert('Error creating user');
+    } finally {
+      setIsCreatingUser(false);
+    }
+  };
+
   const toggleChartMetric = (mId: string) => {
     setPendingChartMetrics(prev => {
       if (prev.includes(mId)) return prev.filter(x => x !== mId);
       if (prev.length >= 2) return [prev[1], mId];
       return [...prev, mId];
     });
-  };
+  }; 
 
   return (
     <div className="space-y-12 animate-in fade-in duration-700 pb-32">
@@ -73,9 +129,10 @@ const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, setCurrentUser
            <SidebarButton icon={UserCircle} label="My Profile" active={activeSubTab === 'profile'} onClick={() => setActiveSubTab('profile')} />
            {isPrivileged && (
              <>
-                <SidebarButton icon={SettingsIcon} label="Agency Identity" active={activeSubTab === 'agency'} onClick={() => setActiveSubTab('agency')} />
-                <SidebarButton icon={Target} label="Workspace Defaults" active={activeSubTab === 'defaults'} onClick={() => setActiveSubTab('defaults')} />
-                <SidebarButton icon={History} label="System Activity" active={activeSubTab === 'activity'} onClick={() => setActiveSubTab('activity')} />
+                {/* <SidebarButton icon={SettingsIcon} label="Agency Identity" active={activeSubTab === 'agency'} onClick={() => setActiveSubTab('agency')} /> */}
+                {isAdmin && <SidebarButton icon={UserCheck} label="Users" active={activeSubTab === 'users'} onClick={() => setActiveSubTab('users')} />}
+                {/* <SidebarButton icon={Target} label="Workspace Defaults" active={activeSubTab === 'defaults'} onClick={() => setActiveSubTab('defaults')} /> */}
+                {/* <SidebarButton icon={History} label="System Activity" active={activeSubTab === 'activity'} onClick={() => setActiveSubTab('activity')} /> */}
              </>
            )}
         </div>
@@ -139,6 +196,55 @@ const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, setCurrentUser
                 </button>
               </div>
             )}
+
+            {activeSubTab === 'users' && isAdmin && (
+              <div className="space-y-6 animate-in slide-in-from-right-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <label className="text-[9px] font-black uppercase text-zinc-600 px-2 tracking-widest">Full Name</label>
+                    <input className="w-full bg-black border border-white/10 p-4 rounded-xl text-xs font-bold text-white outline-none focus:border-purple-500" placeholder="Full Name" value={newUserForm.name} onChange={e => setNewUserForm({...newUserForm, name: e.target.value})} />
+
+                    <label className="text-[9px] font-black uppercase text-zinc-600 px-2 tracking-widest mt-3">Email</label>
+                    <input type="email" className="w-full bg-black border border-white/10 p-4 rounded-xl text-xs font-bold text-white outline-none focus:border-purple-500" placeholder="Email Address" value={newUserForm.email} onChange={e => setNewUserForm({...newUserForm, email: e.target.value})} />
+                  </div>
+
+                  <div className="space-y-3">
+                    <label className="text-[9px] font-black uppercase text-zinc-600 px-2 tracking-widest">Role</label>
+                    <select className="w-full bg-black border border-white/10 p-4 rounded-xl text-xs font-black uppercase text-white outline-none focus:border-purple-500" value={newUserForm.role} onChange={e => setNewUserForm({...newUserForm, role: e.target.value as any})}>
+                      <option value="closer">Closer</option>
+                      <option value="setter">Setter</option>
+                      <option value="bookkeeper">Bookkeeper</option>
+                      <option value="admin">Admin</option>
+                    </select>
+
+                    <label className="text-[9px] font-black uppercase text-zinc-600 px-2 tracking-widest mt-3">Company ID</label>
+                    <input className="w-full bg-black border border-white/10 p-4 rounded-xl text-xs font-bold text-white outline-none focus:border-purple-500" placeholder="Company ID (matches Login setup sheet)" value={newUserForm.companyId} onChange={e => setNewUserForm({...newUserForm, companyId: e.target.value})} />
+
+                    <label className="text-[9px] font-black uppercase text-zinc-600 px-2 tracking-widest mt-3">Password</label>
+                    <input type="password" className="w-full bg-black border border-white/10 p-4 rounded-xl text-xs font-bold text-white outline-none focus:border-purple-500" placeholder="Temporary password" value={newUserForm.password} onChange={e => setNewUserForm({...newUserForm, password: e.target.value})} />
+                  </div>
+                </div>
+
+                <button onClick={createUserFromSettings} disabled={isCreatingUser} className={`w-full py-4 font-black uppercase text-xs tracking-widest rounded-xl shadow-xl active:scale-95 transition-all ${isCreatingUser ? 'opacity-60 cursor-not-allowed bg-zinc-900 text-zinc-500' : 'purple-solid text-white'}`}>
+                  {isCreatingUser ? 'Creating...' : 'Create User'}
+                </button>
+
+                <div className="pt-6 border-t border-white/5">
+                  <h4 className="text-sm font-black uppercase text-zinc-500">Existing Users</h4>
+                  <div className="grid gap-2 mt-4">
+                    {users.map(u => (
+                      <div key={u.id} className="flex items-center justify-between p-4 rounded-xl bg-black border border-white/5">
+                        <div className="flex-1">
+                          <div className="text-sm font-black">{u.name} <span className="text-xs text-zinc-500">({u.role})</span></div>
+                          <div className="text-[11px] text-zinc-600">{u.email} • {u.agencyId}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Other tabs remain unchanged... */}
           </div>
         </div>

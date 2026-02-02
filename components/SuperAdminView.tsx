@@ -22,6 +22,17 @@ const SuperAdminView: React.FC<SuperAdminViewProps> = ({ allUsers, allLogs, allA
     name: '', price: '', interval: 'month', platform: 'STRIPE', features: [''], checkoutUrl: ''
   });
 
+  // Add User modal state
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [newUser, setNewUser] = useState<{ name: string; email: string; role: 'closer'|'setter'|'bookkeeper'|'admin'; password: string; companyId: string }>({
+    name: '',
+    email: '',
+    role: 'closer',
+    password: '',
+    companyId: ''
+  });
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+
   const workspaces = useMemo(() => {
     const groups: Record<string, { id: string, name: string, userCount: number, owner: string, agencyId: string }> = {};
     allUsers.forEach(u => {
@@ -91,6 +102,54 @@ const SuperAdminView: React.FC<SuperAdminViewProps> = ({ allUsers, allLogs, allA
     }));
   };
 
+  // Create a new user through backend (which forwards to Google Apps Script)
+  const createUser = async () => {
+    const { name, email, role, password, companyId } = newUser;
+    if (!name || !email || !role || !password || !companyId) {
+      alert('Please fill out all fields to create a user');
+      return;
+    }
+    setIsCreatingUser(true);
+    try {
+      const response = await fetch('/api/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, role, password, companyName: companyId })
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        const created: User = {
+          id: Math.random().toString(36).substr(2, 9),
+          name,
+          email,
+          role: role as any,
+          revenueGoal: settings.defaultUserGoal,
+          status: 'active',
+          agencyId: companyId,
+          needsSetup: false,
+          taskNotificationsEnabled: true,
+          notificationSoundEnabled: true,
+          notificationVibrationEnabled: false,
+          taskReminderOffset: { value: 1, unit: 'hours', direction: 'before' }
+        };
+
+        setUsers(prev => [...prev, created]);
+        logAudit(`SUPER ADMIN: Created user ${name} (${role}) in ${companyId}`, 'USER_MANAGEMENT', created);
+        alert('User created successfully');
+        setShowAddUser(false);
+        setNewUser({ name: '', email: '', role: 'closer', password: '', companyId: '' });
+      } else {
+        alert(data.message || 'User creation failed');
+      }
+    } catch (err) {
+      console.error('Create user error', err);
+      alert('Error creating user');
+    } finally {
+      setIsCreatingUser(false);
+    }
+  }; 
+
   return (
     <div className="space-y-12 animate-in fade-in duration-700 pb-32">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
@@ -147,10 +206,15 @@ const SuperAdminView: React.FC<SuperAdminViewProps> = ({ allUsers, allLogs, allA
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-700" size={18} />
                 <input className="w-full bg-zinc-950 border border-white/5 p-5 pl-12 rounded-[2rem] text-sm font-bold outline-none focus:border-yellow-500" placeholder="Search Workspaces..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
               </div>
-              <div className="px-6 py-4 bg-zinc-950 border border-white/5 rounded-2xl text-[9px] font-black uppercase tracking-widest text-zinc-500">
-                Active Archives: <span className="text-white">{workspaces.length}</span>
+              <div className="flex items-center gap-3">
+                <div className="px-6 py-4 bg-zinc-950 border border-white/5 rounded-2xl text-[9px] font-black uppercase tracking-widest text-zinc-500">
+                  Active Archives: <span className="text-white">{workspaces.length}</span>
+                </div>
+                <button onClick={() => setShowAddUser(true)} className="flex items-center gap-2 px-5 py-3 bg-purple-600 rounded-2xl text-white text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all">
+                  <Plus size={14} /> Add User
+                </button>
               </div>
-            </div>
+            </div> 
 
             <div className="grid gap-4">
               {workspaces.map(w => (
@@ -402,7 +466,51 @@ const SuperAdminView: React.FC<SuperAdminViewProps> = ({ allUsers, allLogs, allA
            </div>
         </div>
       )}
-    </div>
+      {showAddUser && (
+        <div className="fixed inset-0 z-[160] bg-black/95 backdrop-blur-md flex items-center justify-center p-6">
+           <div className="bg-[#0a0a0a] border border-white/10 p-10 md:p-12 rounded-[3.5rem] w-full max-w-md space-y-6 animate-in zoom-in-95 shadow-2xl relative">
+              <button onClick={() => setShowAddUser(false)} className="absolute top-6 right-6 text-zinc-600 hover:text-white"><X size={20}/></button>
+              <div className="text-center space-y-2">
+                 <h3 className="text-2xl font-black italic gold-text uppercase">Create New User</h3>
+                 <p className="text-[10px] text-zinc-500 font-black uppercase tracking-widest">Define role & credentials</p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[9px] font-black uppercase text-zinc-600 px-2 tracking-widest">Full Name</label>
+                  <input className="w-full bg-black border border-white/10 p-4 rounded-xl text-xs font-bold text-white outline-none focus:border-purple-500" placeholder="Full Name" value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} />
+                </div>
+                <div>
+                  <label className="text-[9px] font-black uppercase text-zinc-600 px-2 tracking-widest">Email</label>
+                  <input type="email" className="w-full bg-black border border-white/10 p-4 rounded-xl text-xs font-bold text-white outline-none focus:border-purple-500" placeholder="Email Address" value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[9px] font-black uppercase text-zinc-600 px-2 tracking-widest">Role</label>
+                    <select className="w-full bg-black border border-white/10 p-4 rounded-xl text-xs font-black uppercase text-white outline-none focus:border-purple-500" value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value as any})}>
+                      <option value="closer">Closer</option>
+                      <option value="setter">Setter</option>
+                      <option value="bookkeeper">Bookkeeper</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black uppercase text-zinc-600 px-2 tracking-widest">Company ID</label>
+                    <input className="w-full bg-black border border-white/10 p-4 rounded-xl text-xs font-bold text-white outline-none focus:border-purple-500" placeholder="Company ID (matches Login setup sheet)" value={newUser.companyId} onChange={e => setNewUser({...newUser, companyId: e.target.value})} />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[9px] font-black uppercase text-zinc-600 px-2 tracking-widest">Password</label>
+                  <input type="password" className="w-full bg-black border border-white/10 p-4 rounded-xl text-xs font-bold text-white outline-none focus:border-purple-500" placeholder="Temporary password" value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} />
+                </div>
+
+                <button onClick={createUser} disabled={isCreatingUser} className={`w-full py-4 font-black uppercase text-xs tracking-widest rounded-xl shadow-xl active:scale-95 transition-all ${isCreatingUser ? 'opacity-60 cursor-not-allowed bg-zinc-900 text-zinc-500' : 'purple-solid text-white'}`}>
+                  {isCreatingUser ? 'Creating...' : 'Create User'}
+                </button>
+              </div>
+           </div>
+        </div>
+      )}    </div>
   );
 };
 
